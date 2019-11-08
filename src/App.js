@@ -1,11 +1,13 @@
 import React, {useState,useEffect} from 'react';
 import { makeStyles } from '@material-ui/core/styles';
-import { FacadeOL } from './utils/facade_openlayers.js';
 import Card from '@material-ui/core/Card';
 import CardActions from '@material-ui/core/CardActions'
 import CardContent from '@material-ui/core/CardContent';
 import Button from '@material-ui/core/Button';
 import TextField from '@material-ui/core/TextField';
+
+import { FacadeOL } from './utils/facade_openlayers.js';
+import { request } from "./utils/requests"
 
 const useStyles = makeStyles( theme => ({
   card: {
@@ -33,17 +35,35 @@ const useStyles = makeStyles( theme => ({
 export default function App() {
   const classes = useStyles()
   const [facadeOL, setFacadeOL] = useState(new FacadeOL());
-  const [state, setState] = {
-    sld_url: "",
-    geojson_url: ""
-  }
+  const [state, setState] = useState({
+    sld_url: "http://ggt-des.ibge.gov.br/styles/ccar/capitals.sld",
+    geojson_url: "http://ggt-des.ibge.gov.br/api/bcim/capitais",
+  })
   
   useEffect(() => {
     setFacadeOL(new FacadeOL())
   }, [facadeOL.currentBaseLayerName]) 
 
   const handleSldUrlChange = event => {
-    setState({sld_url: event.target.value, ...state})
+    setState({...state, sld_url: event.target.value})
+  }
+  
+  const handleGeoJsonUrlChange = event => {
+    setState({...state, geojson_url: event.target.value})
+  }
+
+  async function findGeoJson(url){
+    const response = await request(url)
+    return response.data
+  }
+
+  const handleAddLayer = async () => {
+    const GeoJson = await findGeoJson(state.geojson_url)
+    let vectorLayer = await facadeOL.addVectorLayerFromGeoJSON(GeoJson)
+
+    const resp = await request(state.sld_url)
+    facadeOL.applySLDOnVectorLayer(vectorLayer,resp.data)
+    
   }
 
   return (
@@ -66,13 +86,21 @@ export default function App() {
             label="GeoJson URL"
             value={state.geojson_url}
             className={classes.textField}
+            onChange={handleGeoJsonUrlChange}
             margin="normal"
             variant="outlined"
           />
 
         </CardContent>
         <CardActions>
-          <Button  variant="contained" color="primary" size="small">carregar</Button>
+          <Button 
+            variant="contained"
+            color="primary" 
+            size="small"
+            onClick={handleAddLayer}
+          >
+            carregar
+          </Button>
         </CardActions>
       </Card>
     </div>

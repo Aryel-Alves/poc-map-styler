@@ -15,9 +15,11 @@ import { ImageStatic, ImageWMS, Vector, XYZ, TileImage } from 'ol/source'
 import { Style, Icon, Stroke } from 'ol/style'
 import WMSCapabilities from 'ol/format/WMSCapabilities'
 import GeoJSON from 'ol/format/GeoJSON'
+import {getPointResolution} from 'ol/proj'
 import { WMSCapabilityLayer} from './LayerResource'
 import axios from 'axios';
 import {request} from './requests';
+import {Reader, getLayer, getStyle, createOlStyleFunction} from "./sldReader"
 
 export class FacadeOL {
     constructor(id_map='map', coordinates_center=[-4331024.58685793, -1976355.8033415168], a_zoom_value = 4, a_baseLayer_name='OSM' ) {
@@ -107,6 +109,32 @@ export class FacadeOL {
     getWMSMap(wmsLayer) {
       let wmsSource = new ImageWMS({url: wmsLayer.entryPoint +'/wms', params: {'LAYERS': wmsLayer.name}})
       return new ImageLayer({extent: wmsLayer.bbox, source: wmsSource})
+    }
+    
+    applySLDOnVectorLayer(vectorLayer, rawSld) {
+      const sldObject = Reader(rawSld)
+      console.log(sldObject)
+      const sldLayer = getLayer(sldObject);
+      console.log(sldLayer)
+      const style = getStyle(sldLayer, 'capitals');
+      console.log(style)
+      const featureTypeStyle = style.featuretypestyles[0];
+      console.log(featureTypeStyle)
+  
+      const viewProjection = this.map.getView().getProjection();
+      vectorLayer.setStyle(createOlStyleFunction(featureTypeStyle, {
+        // Use the convertResolution option to calculate a more accurate resolution.
+        convertResolution: viewResolution => {
+          const viewCenter = this.map.getView().getCenter();
+          return getPointResolution(viewProjection, viewResolution, viewCenter);
+        },
+        // If you use point icons with an ExternalGraphic, you have to use imageLoadCallback to
+        // to update the vector layer when an image finishes loading.
+        // If you do not do this, the image will only become visible after the next pan/zoom of the layer.
+        imageLoadedCallback: () => {
+          vectorLayer.changed();
+        },
+      }));
     }
 
     //return a array of features of a vector layer by passing the zIndex of the layer
